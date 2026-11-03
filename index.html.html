@@ -1,0 +1,732 @@
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Pescador Pixel 1988</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Press Start 2P', monospace;
+      background-color: #0b091a;
+      color: #fff;
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    
+    /* Renderizado de canvas tipo pixel art */
+    canvas {
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+    }
+
+    /* Efecto de líneas de escaneo retro (Scanlines) */
+    .scanlines {
+      background: linear-gradient(
+        rgba(18, 16, 16, 0) 50%, 
+        rgba(0, 0, 0, 0.25) 50%
+      );
+      background-size: 100% 4px;
+      pointer-events: none;
+    }
+
+    /* Bordes brillantes estilo arcade */
+    .arcade-border {
+      border: 4px solid #3b82f6;
+      box-shadow: 0 0 12px #3b82f6, inset 0 0 6px #3b82f6;
+    }
+
+    .btn-retro {
+      transition: all 0.05s ease;
+      box-shadow: 0 4px 0 #1e3a8a;
+    }
+    .btn-retro:active {
+      transform: translateY(4px);
+      box-shadow: 0 0 0 #1e3a8a;
+    }
+
+    /* Barra de desplazamiento personalizada */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #3b82f6;
+      border-radius: 0px;
+    }
+  </style>
+</head>
+<body class="flex flex-col items-center justify-start min-h-screen p-2 sm:p-4 overflow-x-hidden">
+
+  <!-- Marco Principal Arcade -->
+  <div class="w-full max-w-4xl flex flex-col items-center">
+    
+    <!-- Encabezado de Puntuación -->
+    <header class="w-full flex flex-wrap justify-between items-center bg-slate-900 border-2 border-slate-700 p-3 mb-2 rounded-lg text-xs sm:text-sm">
+      <div class="flex items-center gap-2 mb-2 sm:mb-0">
+        <span class="text-yellow-400 animate-pulse">⚓</span>
+        <h1 class="text-cyan-400 tracking-wider">PESCADOR PIXEL '88</h1>
+      </div>
+      <div class="flex gap-4 sm:gap-6 text-2xl sm:text-xs">
+        <div>PUNTOS: <span id="ui-score" class="text-green-400">000000</span></div>
+        <div>CAPTURAS: <span id="ui-catches" class="text-yellow-400">0</span></div>
+      </div>
+    </header>
+
+    <!-- Contenedor del Canvas -->
+    <div class="relative w-full aspect-[4/3] max-h-[520px] bg-black arcade-border rounded-lg overflow-hidden">
+      <canvas id="gameCanvas" class="w-full h-full block"></canvas>
+      
+      <!-- Capa de Scanlines -->
+      <div class="absolute inset-0 scanlines"></div>
+
+      <!-- Pantalla de Inicio -->
+      <div id="overlay-start" class="absolute inset-0 flex flex-col items-center justify-center bg-black/75 p-4 text-center z-10">
+        <h2 class="text-lg sm:text-2xl text-yellow-300 mb-4 animate-bounce">¡PRESIONA PARA PESCAR!</h2>
+        <p class="text-xs text-slate-300 max-w-md leading-relaxed mb-6">
+          1. Toca o haz Clic para medir la Potencia.<br>
+          2. Espera a que un pez muerda (¡SIGNO DE ADMIRACIÓN!).<br>
+          3. Mantén ESPACIO o el Botón RECOGER para mantener la tensión en la ZONA VERDE.
+        </p>
+        <button id="btn-start" class="btn-retro bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded text-sm sm:text-base border-2 border-blue-300">
+          INICIAR JUEGO
+        </button>
+      </div>
+
+      <!-- Modal de Pez Atrapado -->
+      <div id="overlay-caught" class="hidden absolute inset-0 flex flex-col items-center justify-center bg-black/85 p-4 text-center z-20">
+        <div class="text-yellow-400 text-xs sm:text-sm mb-2 uppercase tracking-widest">¡HAS ATRAPADO UN...!</div>
+        <div id="caught-fish-icon" class="text-5xl sm:text-6xl mb-2">🐟</div>
+        <div id="caught-fish-name" class="text-lg sm:text-2xl text-cyan-300 mb-1">ROBALO DORADO</div>
+        <div id="caught-fish-stats" class="text-xs text-slate-200 mb-4">PESO: 4.5 kg | PTS: +250</div>
+        <button id="btn-continue" class="btn-retro bg-green-600 hover:bg-green-500 text-white px-6 py-2 rounded text-xs sm:text-sm border-2 border-green-300">
+          LANZAR DE NUEVO
+        </button>
+      </div>
+    </div>
+
+    <!-- Barra de Controles Interactiva -->
+    <div class="w-full mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
+      
+      <!-- Botón de Acción Principal -->
+      <div class="md:col-span-2 flex gap-2">
+        <button id="btn-action" class="btn-retro flex-1 bg-yellow-500 active:bg-yellow-600 text-slate-950 font-bold py-4 px-2 rounded-lg text-sm sm:text-lg border-2 border-yellow-200 select-none">
+          MEDIR POTENCIA
+        </button>
+        <button id="btn-sound" class="btn-retro bg-slate-800 text-slate-300 px-4 py-2 rounded-lg border-2 border-slate-600 text-xs flex items-center justify-center">
+          🔊
+        </button>
+      </div>
+
+      <!-- Conmutador de Historial -->
+      <div class="flex items-center">
+        <button id="btn-toggle-log" class="w-full btn-retro bg-purple-700 hover:bg-purple-600 text-white py-4 px-4 rounded-lg text-xs sm:text-sm border-2 border-purple-400">
+          📜 HISTORIAL
+        </button>
+      </div>
+    </div>
+
+    <!-- Panel de Historial de Capturas -->
+    <div id="log-panel" class="hidden w-full mt-3 bg-slate-900 border-2 border-slate-700 rounded-lg p-3">
+      <h3 class="text-xs text-purple-300 mb-3 flex justify-between items-center">
+        <span>DIARIO DE PESCA / CAPTURAS RECIENTES</span>
+        <span id="log-count" class="text-slate-400">0 Especies</span>
+      </h3>
+      <div id="log-list" class="max-h-40 overflow-y-auto space-y-2 text-[10px] sm:text-xs">
+        <div class="text-slate-500 italic text-center py-4">Aún no has atrapado nada. ¡Lanza el anzuelo al agua!</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Código JavaScript del Juego -->
+  <script>
+    const CANVAS_WIDTH = 400;
+    const CANVAS_HEIGHT = 300;
+
+    const ESTADOS = {
+      INICIO: 'INICIO',
+      MEDIR_POTENCIA: 'MEDIR_POTENCIA',
+      LANZANDO: 'LANZANDO',
+      ESPERANDO: 'ESPERANDO',
+      PICADO: 'PICADO',
+      LUCHA: 'LUCHA',
+      ATRAPADO: 'ATRAPADO'
+    };
+
+    // Base de datos de especies de peces en español
+    const BASE_PECES = [
+      { id: 'sardina', name: 'SARDINA PIXEL', rarity: 'Común', minWeight: 0.2, maxWeight: 1.0, basePts: 100, strength: 0.25, pullSpeed: 0.008, color: '#60a5fa', icon: '🐟' },
+      { id: 'mojarra', name: 'MOJARRA SOLAR', rarity: 'Común', minWeight: 0.5, maxWeight: 2.2, basePts: 150, strength: 0.35, pullSpeed: 0.010, color: '#facc15', icon: '🐠' },
+      { id: 'robalo', name: 'ROBALO VERDE', rarity: 'Poco Común', minWeight: 1.5, maxWeight: 6.0, basePts: 300, strength: 0.55, pullSpeed: 0.015, color: '#4ade80', icon: '🐟' },
+      { id: 'dorado', name: 'DORADO REAL', rarity: 'Poco Común', minWeight: 3.0, maxWeight: 12.0, basePts: 450, strength: 0.65, pullSpeed: 0.018, color: '#fbbf24', icon: '✨' },
+      { id: 'atun', name: 'ATÚN CIBERNÉTICO', rarity: 'Raro', minWeight: 8.0, maxWeight: 25.0, basePts: 700, strength: 0.80, pullSpeed: 0.022, color: '#f87171', icon: '🦈' },
+      { id: 'kraken', name: 'KRAKEN BEBÉ', rarity: 'Legendario', minWeight: 15.0, maxWeight: 50.0, basePts: 2500, strength: 0.95, pullSpeed: 0.028, color: '#c084fc', icon: '🐙' }
+    ];
+
+    // Sintetizador de audio retro
+    class AudioRetro {
+      constructor() {
+        this.ctx = null;
+        this.enabled = true;
+      }
+
+      init() {
+        if (!this.ctx) {
+          this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+      }
+
+      playTone(freq, type = 'square', duration = 0.1, vol = 0.1) {
+        if (!this.enabled || !this.ctx) return;
+        try {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = type;
+          osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+          gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.00001, this.ctx.currentTime + duration);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          osc.stop(this.ctx.currentTime + duration);
+        } catch (e) {}
+      }
+
+      playLanzamiento() {
+        if (!this.enabled || !this.ctx) return;
+        for (let i = 0; i < 5; i++) {
+          setTimeout(() => this.playTone(150 + i * 80, 'sine', 0.05, 0.08), i * 30);
+        }
+      }
+
+      playPicada() {
+        if (!this.enabled || !this.ctx) return;
+        this.playTone(600, 'square', 0.1, 0.2);
+        setTimeout(() => this.playTone(850, 'square', 0.2, 0.25), 100);
+      }
+
+      playCaptura() {
+        if (!this.enabled || !this.ctx) return;
+        const notas = [261.63, 329.63, 392.00, 523.25];
+        notas.forEach((freq, idx) => {
+          setTimeout(() => this.playTone(freq, 'triangle', 0.15, 0.15), idx * 100);
+        });
+      }
+
+      playRuptura() {
+        if (!this.enabled || !this.ctx) return;
+        this.playTone(100, 'sawtooth', 0.3, 0.3);
+      }
+    }
+
+    const audio = new AudioRetro();
+
+    // Motor de juego
+    class JuegoPesca {
+      constructor() {
+        this.canvas = document.getElementById('gameCanvas');
+        this.ctx = this.canvas.getContext('2d');
+        
+        this.canvas.width = CANVAS_WIDTH;
+        this.canvas.height = CANVAS_HEIGHT;
+
+        this.state = ESTADOS.INICIO;
+        this.score = 0;
+        this.catchCount = 0;
+        this.catchLog = [];
+
+        this.fishermanX = 50;
+        this.fishermanY = 135;
+        this.waterLevel = 150;
+
+        this.powerMeter = 0;
+        this.powerDirection = 1;
+        this.powerSpeed = 0.025;
+        this.castPower = 0;
+
+        this.bobber = { x: 0, y: 0, targetX: 0, targetY: 0 };
+        this.biteTimer = 0;
+        this.splashParticles = [];
+
+        this.activeFish = null;
+        this.tension = 0.2;
+        this.sweetZoneStart = 0.35;
+        this.sweetZoneEnd = 0.70;
+        this.fishDistance = 100;
+        this.isReeling = false;
+
+        this.time = 0;
+        this.bubbles = [];
+        this.initEnvironment();
+
+        this.uiScore = document.getElementById('ui-score');
+        this.uiCatches = document.getElementById('ui-catches');
+        this.uiBtnAction = document.getElementById('btn-action');
+        this.overlayStart = document.getElementById('overlay-start');
+        this.overlayCaught = document.getElementById('overlay-caught');
+
+        this.bindEvents();
+      }
+
+      initEnvironment() {
+        for (let i = 0; i < 15; i++) {
+          this.bubbles.push({
+            x: Math.random() * CANVAS_WIDTH,
+            y: this.waterLevel + Math.random() * (CANVAS_HEIGHT - this.waterLevel),
+            speed: 0.2 + Math.random() * 0.5,
+            radius: Math.random() * 2 + 1
+          });
+        }
+      }
+
+      bindEvents() {
+        document.getElementById('btn-start').addEventListener('click', () => {
+          audio.init();
+          this.overlayStart.classList.add('hidden');
+          this.setState(ESTADOS.INICIO);
+        });
+
+        document.getElementById('btn-continue').addEventListener('click', () => {
+          this.overlayCaught.classList.add('hidden');
+          this.setState(ESTADOS.INICIO);
+        });
+
+        document.getElementById('btn-sound').addEventListener('click', (e) => {
+          audio.enabled = !audio.enabled;
+          e.target.innerText = audio.enabled ? '🔊' : '🔇';
+        });
+
+        document.getElementById('btn-toggle-log').addEventListener('click', () => {
+          document.getElementById('log-panel').classList.toggle('hidden');
+        });
+
+        const triggerActionDown = (e) => {
+          if (e) e.preventDefault();
+          audio.init();
+          this.handleInputStart();
+        };
+
+        const triggerActionUp = (e) => {
+          if (e) e.preventDefault();
+          this.handleInputEnd();
+        };
+
+        this.uiBtnAction.addEventListener('mousedown', triggerActionDown);
+        this.uiBtnAction.addEventListener('mouseup', triggerActionUp);
+        this.uiBtnAction.addEventListener('touchstart', triggerActionDown);
+        this.uiBtnAction.addEventListener('touchend', triggerActionUp);
+
+        window.addEventListener('keydown', (e) => {
+          if (e.code === 'Space' && !e.repeat) {
+            audio.init();
+            this.handleInputStart();
+          }
+        });
+
+        window.addEventListener('keyup', (e) => {
+          if (e.code === 'Space') {
+            this.handleInputEnd();
+          }
+        });
+      }
+
+      setState(newState) {
+        this.state = newState;
+        this.updateButtonLabel();
+      }
+
+      updateButtonLabel() {
+        switch (this.state) {
+          case ESTADOS.INICIO:
+            this.uiBtnAction.innerText = 'MEDIR POTENCIA';
+            this.uiBtnAction.className = 'btn-retro flex-1 bg-yellow-500 text-slate-950 font-bold py-4 px-2 rounded-lg text-sm sm:text-lg border-2 border-yellow-200';
+            break;
+          case ESTADOS.MEDIR_POTENCIA:
+            this.uiBtnAction.innerText = '¡LANZAR!';
+            this.uiBtnAction.className = 'btn-retro flex-1 bg-red-500 text-white font-bold py-4 px-2 rounded-lg text-sm sm:text-lg border-2 border-red-200 animate-pulse';
+            break;
+          case ESTADOS.LANZANDO:
+          case ESTADOS.ESPERANDO:
+            this.uiBtnAction.innerText = 'ESPERANDO PICADA...';
+            this.uiBtnAction.className = 'btn-retro flex-1 bg-slate-700 text-slate-400 font-bold py-4 px-2 rounded-lg text-sm sm:text-lg border-2 border-slate-600 opacity-80';
+            break;
+          case ESTADOS.PICADO:
+            this.uiBtnAction.innerText = '¡ENGANCHA EL PEZ!';
+            this.uiBtnAction.className = 'btn-retro flex-1 bg-green-500 text-slate-950 font-bold py-4 px-2 rounded-lg text-sm sm:text-lg border-2 border-green-200 animate-bounce';
+            break;
+          case ESTADOS.LUCHA:
+            this.uiBtnAction.innerText = '¡MANTÉN PARA RECOGER!';
+            this.uiBtnAction.className = 'btn-retro flex-1 bg-blue-600 text-white font-bold py-4 px-2 rounded-lg text-sm sm:text-lg border-2 border-blue-300';
+            break;
+        }
+      }
+
+      handleInputStart() {
+        if (this.state === ESTADOS.INICIO) {
+          this.powerMeter = 0;
+          this.powerDirection = 1;
+          this.setState(ESTADOS.MEDIR_POTENCIA);
+        } else if (this.state === ESTADOS.MEDIR_POTENCIA) {
+          this.castPower = this.powerMeter;
+          this.executeCast();
+        } else if (this.state === ESTADOS.PICADO) {
+          this.startFight();
+        } else if (this.state === ESTADOS.LUCHA) {
+          this.isReeling = true;
+        }
+      }
+
+      handleInputEnd() {
+        if (this.state === ESTADOS.LUCHA) {
+          this.isReeling = false;
+        }
+      }
+
+      executeCast() {
+        this.setState(ESTADOS.LANZANDO);
+        audio.playLanzamiento();
+
+        const minDistance = 120;
+        const maxDistance = CANVAS_WIDTH - 30;
+        this.bobber.targetX = minDistance + (maxDistance - minDistance) * this.castPower;
+        this.bobber.targetY = this.waterLevel + 10;
+
+        this.bobber.x = this.fishermanX + 25;
+        this.bobber.y = this.fishermanY - 10;
+      }
+
+      startFight() {
+        const roll = Math.random();
+        let species;
+        if (roll < 0.40) species = BASE_PECES.filter(f => f.rarity === 'Común');
+        else if (roll < 0.75) species = BASE_PECES.filter(f => f.rarity === 'Poco Común');
+        else if (roll < 0.93) species = BASE_PECES.filter(f => f.rarity === 'Raro');
+        else species = BASE_PECES.filter(f => f.rarity === 'Legendario');
+
+        const baseType = species[Math.floor(Math.random() * species.length)];
+        const weight = parseFloat((baseType.minWeight + Math.random() * (baseType.maxWeight - baseType.minWeight)).toFixed(1));
+
+        this.activeFish = {
+          ...baseType,
+          weight: weight,
+          pts: Math.round(baseType.basePts * (weight / baseType.minWeight))
+        };
+
+        this.tension = 0.5;
+        this.fishDistance = 100;
+        this.setState(ESTADOS.LUCHA);
+      }
+
+      spawnSplash(x, y, count = 8) {
+        for (let i = 0; i < count; i++) {
+          this.splashParticles.push({
+            x: x,
+            y: y,
+            vx: (Math.random() - 0.5) * 3,
+            vy: -Math.random() * 3 - 1,
+            life: 1.0
+          });
+        }
+      }
+
+      addCatchToLog(fish) {
+        this.catchLog.unshift(fish);
+        this.score += fish.pts;
+        this.catchCount++;
+
+        this.uiScore.innerText = String(this.score).padStart(6, '0');
+        this.uiCatches.innerText = this.catchCount;
+
+        const logList = document.getElementById('log-list');
+        document.getElementById('log-count').innerText = `${this.catchLog.length} Atrapados`;
+        
+        logList.innerHTML = this.catchLog.map(item => `
+          <div class="flex justify-between items-center bg-slate-800 p-2 rounded border border-slate-700">
+            <div class="flex items-center gap-2">
+              <span class="text-base">${item.icon}</span>
+              <div>
+                <div class="font-bold text-cyan-300">${item.name}</div>
+                <div class="text-[9px] text-slate-400">${item.rarity} | ${item.weight} kg</div>
+              </div>
+            </div>
+            <div class="text-yellow-400 font-bold">+${item.pts} PTS</div>
+          </div>
+        `).join('');
+      }
+
+      update() {
+        this.time += 0.05;
+
+        if (this.state === ESTADOS.MEDIR_POTENCIA) {
+          this.powerMeter += this.powerSpeed * this.powerDirection;
+          if (this.powerMeter >= 1.0) {
+            this.powerMeter = 1.0;
+            this.powerDirection = -1;
+          } else if (this.powerMeter <= 0) {
+            this.powerMeter = 0;
+            this.powerDirection = 1;
+          }
+        }
+
+        if (this.state === ESTADOS.LANZANDO) {
+          this.bobber.x += (this.bobber.targetX - this.bobber.x) * 0.1;
+          this.bobber.y += (this.bobber.targetY - this.bobber.y) * 0.1;
+
+          if (Math.abs(this.bobber.x - this.bobber.targetX) < 2) {
+            this.bobber.x = this.bobber.targetX;
+            this.bobber.y = this.bobber.targetY;
+            this.spawnSplash(this.bobber.x, this.waterLevel);
+            this.setState(ESTADOS.ESPERANDO);
+            this.biteTimer = 100 + Math.random() * 200;
+          }
+        }
+
+        if (this.state === ESTADOS.ESPERANDO) {
+          this.biteTimer--;
+          if (this.biteTimer <= 0) {
+            this.setState(ESTADOS.PICADO);
+            audio.playPicada();
+            this.spawnSplash(this.bobber.x, this.waterLevel, 12);
+          }
+        }
+
+        if (this.state === ESTADOS.LUCHA) {
+          const fish = this.activeFish;
+
+          if (this.isReeling) {
+            this.tension += 0.018;
+            this.fishDistance -= 0.35;
+          } else {
+            this.tension -= 0.015;
+          }
+
+          const fightBehavior = Math.sin(this.time * 2) * fish.pullSpeed;
+          this.tension += fightBehavior;
+          this.tension = Math.max(0, Math.min(1, this.tension));
+
+          if (this.tension >= 1.0) {
+            audio.playRuptura();
+            this.spawnSplash(this.bobber.x, this.waterLevel, 15);
+            this.setState(ESTADOS.INICIO);
+            alert('¡SE ROMPIÓ EL HILO! Había demasiada tensión.');
+          } else if (this.tension <= 0.0) {
+            audio.playRuptura();
+            this.setState(ESTADOS.INICIO);
+            alert('¡SE ESCAPÓ! La línea quedó demasiado floja.');
+          } else if (this.fishDistance <= 0) {
+            audio.playCaptura();
+            this.addCatchToLog(this.activeFish);
+            
+            document.getElementById('caught-fish-icon').innerText = this.activeFish.icon;
+            document.getElementById('caught-fish-name').innerText = this.activeFish.name;
+            document.getElementById('caught-fish-stats').innerText = `RAREZA: ${this.activeFish.rarity.toUpperCase()} | PESO: ${this.activeFish.weight} KG | PTS: +${this.activeFish.pts}`;
+            this.overlayCaught.classList.remove('hidden');
+            
+            this.setState(ESTADOS.ATRAPADO);
+          }
+        }
+
+        for (let i = this.splashParticles.length - 1; i >= 0; i--) {
+          let p = this.splashParticles[i];
+          p.x += p.vx;
+          p.y += p.vy;
+          p.vy += 0.15;
+          p.life -= 0.04;
+          if (p.life <= 0) this.splashParticles.splice(i, 1);
+        }
+
+        this.bubbles.forEach(b => {
+          b.y -= b.speed;
+          if (b.y < this.waterLevel) {
+            b.y = CANVAS_HEIGHT + 10;
+            b.x = Math.random() * CANVAS_WIDTH;
+          }
+        });
+      }
+
+      draw() {
+        this.ctx.fillStyle = '#0f172a';
+        this.ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+        // Cielo
+        this.ctx.fillStyle = '#1e1b4b';
+        this.ctx.fillRect(0, 0, CANVAS_WIDTH, this.waterLevel);
+        
+        // Sol
+        this.ctx.fillStyle = '#fde047';
+        this.ctx.beginPath();
+        this.ctx.arc(330, 50, 25, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        // Montañas
+        this.ctx.fillStyle = '#312e81';
+        this.ctx.beginPath();
+        this.ctx.moveTo(0, this.waterLevel);
+        this.ctx.lineTo(60, 80);
+        this.ctx.lineTo(130, this.waterLevel);
+        this.ctx.lineTo(200, 100);
+        this.ctx.lineTo(280, this.waterLevel);
+        this.ctx.fill();
+
+        // Muelle
+        this.ctx.fillStyle = '#78350f';
+        this.ctx.fillRect(0, this.fishermanY + 20, 75, CANVAS_HEIGHT - this.fishermanY);
+        this.ctx.fillStyle = '#451a03';
+        this.ctx.fillRect(10, this.fishermanY + 20, 10, CANVAS_HEIGHT);
+        this.ctx.fillRect(50, this.fishermanY + 20, 10, CANVAS_HEIGHT);
+
+        // Pescador
+        this.ctx.fillStyle = '#ef4444';
+        this.ctx.fillRect(this.fishermanX, this.fishermanY, 14, 18);
+        this.ctx.fillStyle = '#fca5a5';
+        this.ctx.fillRect(this.fishermanX + 2, this.fishermanY - 10, 10, 10);
+        this.ctx.fillStyle = '#b91c1c';
+        this.ctx.fillRect(this.fishermanX, this.fishermanY - 12, 14, 4);
+
+        // Caña de Pescar
+        this.ctx.strokeStyle = '#d97706';
+        this.ctx.lineWidth = 2;
+        this.ctx.beginPath();
+        this.ctx.moveTo(this.fishermanX + 10, this.fishermanY + 5);
+        this.ctx.lineTo(this.fishermanX + 35, this.fishermanY - 15);
+        this.ctx.stroke();
+
+        // Agua
+        this.ctx.fillStyle = '#0284c7';
+        this.ctx.fillRect(0, this.waterLevel, CANVAS_WIDTH, CANVAS_HEIGHT - this.waterLevel);
+
+        // Olas de Agua
+        this.ctx.fillStyle = '#38bdf8';
+        for (let x = 0; x < CANVAS_WIDTH; x += 12) {
+          const waveY = Math.sin(this.time + x * 0.05) * 2;
+          this.ctx.fillRect(x, this.waterLevel + waveY, 8, 3);
+        }
+
+        // Burbujas
+        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+        this.bubbles.forEach(b => {
+          this.ctx.beginPath();
+          this.ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+          this.ctx.fill();
+        });
+
+        // Hilo y Boya
+        if (this.state !== ESTADOS.INICIO && this.state !== ESTADOS.MEDIR_POTENCIA) {
+          this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+          this.ctx.lineWidth = 1;
+          this.ctx.beginPath();
+          this.ctx.moveTo(this.fishermanX + 35, this.fishermanY - 15);
+          
+          const midX = (this.fishermanX + 35 + this.bobber.x) / 2;
+          const midY = (this.fishermanY - 15 + this.bobber.y) / 2 + (this.state === ESTADOS.LUCHA ? -10 : 15);
+          this.ctx.quadraticCurveTo(midX, midY, this.bobber.x, this.bobber.y);
+          this.ctx.stroke();
+
+          const bobberYAnim = this.bobber.y + (this.state === ESTADOS.ESPERANDO ? Math.sin(this.time * 3) * 1.5 : 0);
+          this.ctx.fillStyle = '#ef4444';
+          this.ctx.fillRect(this.bobber.x - 3, bobberYAnim - 4, 6, 4);
+          this.ctx.fillStyle = '#ffffff';
+          this.ctx.fillRect(this.bobber.x - 3, bobberYAnim, 6, 4);
+        }
+
+        // Signo de Picada (!)
+        if (this.state === ESTADOS.PICADO) {
+          this.ctx.fillStyle = '#facc15';
+          this.ctx.font = 'bold 16px "Press Start 2P"';
+          this.ctx.fillText('!', this.bobber.x - 4, this.bobber.y - 15);
+        }
+
+        // Pez luchando
+        if (this.state === ESTADOS.LUCHA && this.activeFish) {
+          const fishX = this.bobber.x + Math.sin(this.time * 5) * 15;
+          const fishY = this.waterLevel + 35 + Math.cos(this.time * 3) * 10;
+          
+          this.ctx.fillStyle = this.activeFish.color;
+          this.ctx.fillRect(fishX - 8, fishY - 4, 16, 8);
+          this.ctx.beginPath();
+          this.ctx.moveTo(fishX + 8, fishY);
+          this.ctx.lineTo(fishX + 14, fishY - 5);
+          this.ctx.lineTo(fishX + 14, fishY + 5);
+          this.ctx.fill();
+        }
+
+        // Partículas de agua
+        this.ctx.fillStyle = '#e0f2fe';
+        this.splashParticles.forEach(p => {
+          this.ctx.fillRect(p.x, p.y, 2, 2);
+        });
+
+        // Barra de Potencia
+        if (this.state === ESTADOS.MEDIR_POTENCIA) {
+          const meterW = 120;
+          const meterH = 14;
+          const meterX = (CANVAS_WIDTH - meterW) / 2;
+          const meterY = 40;
+
+          this.ctx.fillStyle = '#0f172a';
+          this.ctx.fillRect(meterX - 2, meterY - 2, meterW + 4, meterH + 4);
+          this.ctx.fillStyle = '#334155';
+          this.ctx.fillRect(meterX, meterY, meterW, meterH);
+
+          this.ctx.fillStyle = '#eab308';
+          this.ctx.fillRect(meterX, meterY, meterW * this.powerMeter, meterH);
+
+          this.ctx.fillStyle = '#ffffff';
+          this.ctx.font = '8px "Press Start 2P"';
+          this.ctx.fillText('POTENCIA', meterX + 26, meterY - 6);
+        }
+
+        // Barra de Tensión
+        if (this.state === ESTADOS.LUCHA) {
+          const barW = 160;
+          const barH = 16;
+          const barX = (CANVAS_WIDTH - barW) / 2;
+          const barY = 25;
+
+          this.ctx.fillStyle = '#0f172a';
+          this.ctx.fillRect(barX - 3, barY - 3, barW + 6, barH + 6);
+          this.ctx.fillStyle = '#1e293b';
+          this.ctx.fillRect(barX, barY, barW, barH);
+
+          const sweetX = barX + barW * this.sweetZoneStart;
+          const sweetW = barW * (this.sweetZoneEnd - this.sweetZoneStart);
+          this.ctx.fillStyle = 'rgba(34, 197, 94, 0.5)';
+          this.ctx.fillRect(sweetX, barY, sweetW, barH);
+          this.ctx.strokeStyle = '#22c55e';
+          this.ctx.strokeRect(sweetX, barY, sweetW, barH);
+
+          const cursorX = barX + barW * this.tension;
+          const tensionColor = (this.tension >= this.sweetZoneStart && this.tension <= this.sweetZoneEnd) 
+            ? '#22c55e' 
+            : '#ef4444';
+
+          this.ctx.fillStyle = tensionColor;
+          this.ctx.fillRect(cursorX - 3, barY - 2, 6, barH + 4);
+
+          this.ctx.fillStyle = '#ffffff';
+          this.ctx.font = '8px "Press Start 2P"';
+          this.ctx.fillText(`DISTANCIA: ${Math.max(0, Math.round(this.fishDistance))}m`, barX + 20, barY + barH + 14);
+        }
+      }
+
+      loop() {
+        this.update();
+        this.draw();
+        requestAnimationFrame(() => this.loop());
+      }
+    }
+
+    window.onload = () => {
+      const game = new JuegoPesca();
+      game.loop();
+    };
+  </script>
+</body>
+</html>
+```
